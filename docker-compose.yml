@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: mcp-pdf-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+    volumes:
+      - ./output:/app/output
+      - ./.env:/app/.env
+    restart: unless-stopped
+    networks:
+      - mcp-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/docs')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: mcp-pdf-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - mcp-network
+    stdin_open: true
+    tty: true
+
+networks:
+  mcp-network:
+    driver: bridge
+
+volumes:
+  uploads:
+  logs:
+  indexes:

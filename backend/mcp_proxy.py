@@ -58,10 +58,18 @@ class MCPClient:
     async def start(self):
         """Start the MCP server process."""
         mcp_server_path = Path(__file__).parent.parent / "src" / "mcp_server.py"
-        venv_python = Path(__file__).parent.parent / "venv" / "bin" / "python"
         project_root = Path(__file__).parent.parent
         
+        # Determine Python executable (Docker vs local)
+        venv_python = project_root / "venv" / "bin" / "python"
+        if venv_python.exists():
+            python_executable = str(venv_python)
+        else:
+            # In Docker or system Python
+            python_executable = "python"
+        
         logger.info(f"Starting MCP server: {mcp_server_path}")
+        logger.info(f"Python executable: {python_executable}")
         logger.info(f"Project root: {project_root}")
         
         # Pass environment variables to subprocess
@@ -70,7 +78,7 @@ class MCPClient:
         env['PYTHONPATH'] = str(project_root)
         
         self.process = await asyncio.create_subprocess_exec(
-            str(venv_python),
+            python_executable,
             str(mcp_server_path),
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
