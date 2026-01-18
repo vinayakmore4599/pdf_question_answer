@@ -30,12 +30,12 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
-# Start Backend
-echo "📦 Starting backend server (port 8000)..."
+# Start Backend (MCP Proxy)
+echo "📦 Starting MCP proxy server (port 8000)..."
 source venv/bin/activate
-nohup python backend/api.py > output/logs/backend.log 2>&1 &
+nohup python backend/mcp_proxy.py > output/logs/backend.log 2>&1 &
 BACKEND_PID=$!
-echo "✅ Backend started (PID: $BACKEND_PID)"
+echo "✅ MCP Proxy started (PID: $BACKEND_PID)"
 echo ""
 
 # Wait a bit for backend to start

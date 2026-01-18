@@ -144,7 +144,7 @@ class PDFRAGSystem:
         # Combine chunks into context
         context_parts = []
         for idx, chunk in enumerate(chunks, 1):
-            context_parts.append(f"[Relevant Section {idx}]\n{chunk['content']}")
+            context_parts.append(chunk['content'])
         
         context = "\n\n".join(context_parts)
         

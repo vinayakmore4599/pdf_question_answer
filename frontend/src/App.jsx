@@ -288,130 +288,120 @@ function App() {
       )}
 
       <div className="container">
-        {/* Upload Section */}
-        <div className="card upload-section">
-          <h2>📤 Upload PDF Document</h2>
+        {/* Main Card - Upload and Chat Combined */}
+        <div className="card main-section">
+          {/* Upload Area */}
           <div className="upload-area">
-            <input
-              type="file"
-              accept=".pdf"
-              onChange={handleFileChange}
-              id="file-upload"
-              className="file-input"
-            />
-            <label htmlFor="file-upload" className="file-label">
-              {file ? file.name : '📁 Choose PDF file...'}
-            </label>
-            <button
-              onClick={handleUpload}
-              disabled={!file || loading}
-              className="btn btn-primary"
-            >
-              {loading ? '⏳ Processing...' : '🚀 Upload & Process'}
-            </button>
+            <h2>📄 PDF Q&A Assistant</h2>
+            <div className="upload-controls">
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={handleFileChange}
+                id="file-upload"
+                className="file-input"
+              />
+              <label htmlFor="file-upload" className="file-label">
+                {file ? file.name : '📁 Choose PDF file...'}
+              </label>
+              <button
+                onClick={handleUpload}
+                disabled={!file || loading}
+                className="btn btn-primary"
+              >
+                {loading ? '⏳ Processing...' : '🚀 Upload & Process'}
+              </button>
+            </div>
+
+            {pdfInfo && (
+              <div className="pdf-info-compact">
+                <span className="pdf-badge">✅ {pdfInfo.filename}</span>
+                {chatMessages.length > 0 && (
+                  <div className="chat-actions-compact">
+                    <button onClick={downloadChatAsPDF} className="btn-icon" title="Download Chat">
+                      📥
+                    </button>
+                    <button onClick={clearChat} className="btn-icon" title="Clear Chat">
+                      🗑️
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {pdfInfo && (
-            <div className="pdf-info">
-              <h3>✅ PDF Processed Successfully</h3>
-              <p><strong>File:</strong> {pdfInfo.filename}</p>
-              <p><strong>Pages:</strong> {pdfInfo.num_pages}</p>
-              <p><strong>Chunks:</strong> {pdfInfo.num_chunks}</p>
-              <p className="success">{pdfInfo.message}</p>
-            </div>
+          {/* Chat Section */}
+          {pdfId && (
+            <>
+              <div className="chat-container">
+                <div className="chat-messages">
+                  {chatMessages.length === 0 ? (
+                    <div className="empty-chat">
+                      <p>👋 Start by asking a question about your PDF document</p>
+                      <p className="hint">Try: "What is this document about?" or "Summarize the key points"</p>
+                    </div>
+                  ) : (
+                    <>
+                      {chatMessages.map((msg, index) => (
+                        <div key={index} className={`chat-message ${msg.type}`}>
+                          <div className="message-header">
+                            <span className="message-icon">
+                              {msg.type === 'user' ? '👤' : msg.type === 'error' ? '⚠️' : '🤖'}
+                            </span>
+                            <span className="message-role">
+                              {msg.type === 'user' ? 'You' : msg.type === 'error' ? 'Error' : 'AI Assistant'}
+                            </span>
+                          </div>
+                          <div className="message-content">
+                            {msg.type === 'assistant' ? (
+                              <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            ) : (
+                              <p>{msg.content}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      <div ref={chatEndRef} />
+                    </>
+                  )}
+                </div>
+                
+                <div className="chat-input-area">
+                  {loading && (
+                    <div className="typing-indicator">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                  )}
+                  <div className="chat-input-container">
+                    <textarea
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="Ask a question about your PDF..."
+                      className="chat-input"
+                      disabled={loading}
+                      rows="1"
+                    />
+                    <button
+                      onClick={handleAskQuestion}
+                      disabled={!question.trim() || loading}
+                      className="btn-send"
+                      title="Send message (Enter)"
+                    >
+                      {loading ? '⏳' : '📤'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
           )}
         </div>
+      </div>
 
-        {/* Question Section */}
-        {pdfId && (
-          <div className="card question-section">
-            <h2>❓ Ask Questions</h2>
-            
-            <div className="question-input-area">
-            Chat Section */}
-        {pdfId && (
-          <div className="card chat-section">
-            <div className="chat-header">
-              <h2>💬 Chat with your PDF</h2>
-              {chatMessages.length > 0 && (
-                <div className="chat-actions">
-                  <button onClick={downloadChatAsPDF} className="btn-download-chat">
-                    📥 Download Chat
-                  </button>
-                  <button onClick={clearChat} className="btn-clear-chat">
-                    🗑️ Clear Chat
-                  </button>
-                </div>
-              )}
-            </div>
-            
-            <div className="chat-container">
-              <div className="chat-messages">
-                {chatMessages.length === 0 ? (
-                  <div className="empty-chat">
-                    <p>👋 Start by asking a question about your PDF document</p>
-                    <p className="hint">Try: "What is this document about?" or "Summarize the key points"</p>
-                  </div>
-                ) : (
-                  <>
-                    {chatMessages.map((msg, index) => (
-                      <div key={index} className={`chat-message ${msg.type}`}>
-                        <div className="message-header">
-                          <span className="message-icon">
-                            {msg.type === 'user' ? '👤' : msg.type === 'error' ? '⚠️' : '🤖'}
-                          </span>
-                          <span className="message-role">
-                            {msg.type === 'user' ? 'You' : msg.type === 'error' ? 'Error' : 'AI Assistant'}
-                          </span>
-                        </div>
-                        <div className="message-content">
-                          {msg.type === 'assistant' ? (
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
-                          ) : (
-                            <p>{msg.content}</p>
-                          )}
-                        </div>
-                        {msg.usage && (
-                          <div className="message-meta">
-                            <span>Model: {msg.model}</span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    <div ref={chatEndRef} />
-                  </>
-                )}
-              </div>
-              
-              <div className="chat-input-area">
-                {loading && (
-                  <div className="typing-indicator">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                )}
-                <div className="chat-input-container">
-                  <textarea
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Ask a question or ask for follow-up details..."
-                    className="chat-input"
-                    disabled={loading}
-                    rows="1"
-                  />
-                  <button
-                    onClick={handleAskQuestion}
-                    disabled={!question.trim() || loading}
-                    className="btn-send"
-                    title="Send message (Enter)"
-                  >
-                    {loading ? '⏳' : '📤'}
-                  </button>
-                </div>
-              </div>
-            </divy RAG (Retrieval-Augmented Generation) + Perplexity AI</p>
+      <footer className="app-footer">
+        <p>🔮 Powered by RAG • MCP • Perplexity AI</p>
       </footer>
     </div>
   );

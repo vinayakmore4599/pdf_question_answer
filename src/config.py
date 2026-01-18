@@ -22,9 +22,9 @@ class Settings(BaseSettings):
     
     # RAG settings
     use_rag: bool = True  # Use RAG for efficient question answering
-    rag_chunk_size: int = 1000  # Chunk size for RAG indexing
+    rag_chunk_size: int = 1200  # Chunk size for RAG indexing
     rag_chunk_overlap: int = 200  # Overlap between chunks
-    rag_top_k: int = 3  # Number of relevant chunks to retrieve per question
+    rag_top_k: int = 5  # Number of relevant chunks to retrieve per question
     embedding_model: str = "all-MiniLM-L6-v2"  # Fast and lightweight embedding model
     # Alternative models:
     # "all-mpnet-base-v2" - Better quality, slower

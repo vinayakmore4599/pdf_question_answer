@@ -44,7 +44,8 @@ kill_port 8000 "Backend"
 kill_port 3000 "Frontend"
 
 # Kill any remaining processes
-pkill -9 -f "python backend/api.py" 2>/dev/null || true
+pkill -9 -f "python backend/mcp_proxy.py" 2>/dev/null || true
+pkill -9 -f "python backend/api.py" 2>/dev/null || true  # Legacy cleanup
 pkill -9 -f "vite" 2>/dev/null || true
 pkill -9 -f "npm run dev" 2>/dev/null || true
 

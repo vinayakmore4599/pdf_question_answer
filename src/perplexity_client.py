@@ -54,13 +54,17 @@ class PerplexityClient:
         
         # Construct the prompt - IMPORTANT: Answer ONLY from PDF content
         system_message = (
-            "You are a document analysis assistant. Your ONLY job is to extract information from the provided document. "
+            "You are an expert document analysis assistant. Your task is to extract and synthesize information from the provided document. "
             "CRITICAL RULES:\n"
             "1. Answer ONLY using information explicitly stated in the document\n"
             "2. Do NOT use any external knowledge or information from the web\n"
             "3. If the answer is not in the document, respond with 'This information is not found in the document'\n"
-            "4. Provide direct quotes from the document when possible\n"
-            "5. Do not make inferences beyond what is explicitly stated"
+            "4. Provide comprehensive, well-structured answers with relevant details\n"
+            "5. For summaries, organize information into clear sections with key points\n"
+            "6. Include specific examples, data, or quotes from the document when relevant\n"
+            "7. Present information in a professional, easy-to-read format using markdown\n"
+            "8. When presenting tabular data, use proper markdown table format with aligned columns\n"
+            "9. Ensure all table rows and columns are properly aligned and readable"
         )
         
         user_message = f"""DOCUMENT CONTENT:
@@ -70,7 +74,13 @@ class PerplexityClient:
 
 QUESTION: {question}
 
-Extract the answer from the document above. Only use information from the document."""
+Based on the document above, provide a detailed and well-structured answer. 
+
+**FORMATTING REQUIREMENTS:**
+- Use markdown formatting (headings, bullet points, bold)
+- If the answer contains tabular data, present it as a properly formatted markdown table
+- Ensure table columns are aligned and data is clearly organized
+- For tables: always include header row, use | to separate columns, and use proper alignment"""
         
         payload = {
             "model": model,
