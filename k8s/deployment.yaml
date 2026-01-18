@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-pdf-backend
+  namespace: mcp-pdf
+  labels:
+    app: mcp-pdf-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mcp-pdf-backend
+  template:
+    metadata:
+      labels:
+        app: mcp-pdf-backend
+    spec:
+      containers:
+      - name: backend
+        image: vinumore/mcp-pdf-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: PYTHONPATH
+          value: "/app"
+        envFrom:
+        - configMapRef:
+            name: mcp-pdf-config
+        - secretRef:
+            name: mcp-pdf-secret
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /docs
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /docs
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: uploads
+          mountPath: /app/output/uploads
+        - name: cache
+          mountPath: /app/output/cache
+        - name: logs
+          mountPath: /app/output/logs
+      volumes:
+      - name: uploads
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}
+      - name: logs
+        emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-pdf-frontend
+  namespace: mcp-pdf
+  labels:
+    app: mcp-pdf-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mcp-pdf-frontend
+  template:
+    metadata:
+      labels:
+        app: mcp-pdf-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: vinumore/mcp-pdf-frontend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+          name: http
+        envFrom:
+        - configMapRef:
+            name: mcp-pdf-config
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3

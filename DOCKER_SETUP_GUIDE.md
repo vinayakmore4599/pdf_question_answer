@@ -1324,6 +1324,1191 @@ docker exec -it mcp-pdf-backend bash
 
 ---
 
-**Document Version**: 1.0  
+## Pushing Images to Docker Registry
+
+This section covers how to push your built Docker images to a registry (Docker Hub, GitHub Container Registry, or AWS ECR) for easy sharing and deployment.
+
+### Prerequisites
+
+- Docker images built locally (`mcp_pdf-backend:latest` and `mcp_pdf-frontend:latest`)
+- Registry account (Docker Hub, GitHub, or AWS)
+- Docker CLI installed and configured
+
+### Step 1: Login to Docker Hub
+
+**Command:**
+```bash
+docker login
+```
+
+**Interactive Prompts:**
+```
+Login with your Docker ID to push and pull images from Docker Hub. If you don't have a Docker ID, head over to https://hub.docker.com to create one.
+Username: vinumore
+Password: [your_password]
+WARNING! Your password will be stored unencrypted in /Users/vinu__more/.docker/config.json.
+Login Succeeded
+```
+
+**Notes:**
+- You only need to login once per machine
+- Credentials are stored in `~/.docker/config.json`
+- For security, use a Personal Access Token instead of your password
+- To create a PAT: go to Docker Hub → Account Settings → Security → New Access Token
+
+---
+
+### Step 2: Tag Your Images
+
+Before pushing, you need to tag your local images with your registry namespace.
+
+**Tag Backend Image:**
+```bash
+docker tag mcp_pdf-backend:latest vinumore/mcp-pdf-backend:latest
+```
+
+**Tag Frontend Image:**
+```bash
+docker tag mcp_pdf-frontend:latest vinumore/mcp-pdf-frontend:latest
+```
+
+**Add Version Tags (Optional but Recommended):**
+```bash
+# Backend versioning
+docker tag mcp_pdf-backend:latest vinumore/mcp-pdf-backend:v1.0.0
+docker tag mcp_pdf-backend:latest vinumore/mcp-pdf-backend:latest
+
+# Frontend versioning
+docker tag mcp_pdf-frontend:latest vinumore/mcp-pdf-frontend:v1.0.0
+docker tag mcp_pdf-frontend:latest vinumore/mcp-pdf-frontend:latest
+```
+
+**Verify Tags:**
+```bash
+docker images | grep vinumore
+```
+
+**Output:**
+```
+REPOSITORY                        TAG       IMAGE ID      CREATED         SIZE
+vinumore/mcp-pdf-backend          latest    a1b2c3d4e5f6  2 minutes ago   504MB
+vinumore/mcp-pdf-backend          v1.0.0    a1b2c3d4e5f6  2 minutes ago   504MB
+vinumore/mcp-pdf-frontend         latest    f6e5d4c3b2a1  2 minutes ago   82.8MB
+vinumore/mcp-pdf-frontend         v1.0.0    f6e5d4c3b2a1  2 minutes ago   82.8MB
+```
+
+---
+
+### Step 3: Push Images to Docker Hub
+
+**Push Backend Image:**
+```bash
+docker push vinumore/mcp-pdf-backend:latest
+docker push vinumore/mcp-pdf-backend:v1.0.0
+```
+
+**Output:**
+```
+The push refers to repository [docker.io/vinumore/mcp-pdf-backend]
+1a2b3c4d5e6f: Pushed
+2b3c4d5e6f7a: Pushed
+3c4d5e6f7a8b: Pushed
+latest: digest: sha256:1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a size: 2345
+```
+
+**Push Frontend Image:**
+```bash
+docker push vinumore/mcp-pdf-frontend:latest
+docker push vinumore/mcp-pdf-frontend:v1.0.0
+```
+
+**Output:**
+```
+The push refers to repository [docker.io/vinumore/mcp-pdf-frontend]
+5e6f7a8b9c0d: Pushed
+6f7a8b9c0d1e: Pushed
+7a8b9c0d1e2f: Pushed
+latest: digest: sha256:5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e size: 1234
+```
+
+---
+
+### Step 4: Verify Images on Registry
+
+**Check Docker Hub:**
+1. Go to https://hub.docker.com/repositories
+2. Look for `mcp-pdf-backend` and `mcp-pdf-frontend`
+3. Verify tags are present (latest, v1.0.0, etc.)
+
+**Command-line Verification:**
+```bash
+# List all tags for backend
+docker images | grep mcp-pdf-backend
+
+# Check specific repository
+curl -s https://registry.hub.docker.com/v2/repositories/vinumore/mcp-pdf-backend/tags | jq '.results[].name'
+```
+
+---
+
+### Step 5: Update docker-compose.yml to Use Registry Images (Optional)
+
+If you want to pull images from the registry instead of building locally:
+
+**Original docker-compose.yml (using build):**
+```yaml
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: mcp-pdf-backend
+    # ... rest of config
+```
+
+**Updated docker-compose.yml (using registry):**
+```yaml
+services:
+  backend:
+    image: vinumore/mcp-pdf-backend:latest
+    container_name: mcp-pdf-backend
+    # ... rest of config
+```
+
+**Create `docker-compose.registry.yml` for Registry Deployment:**
+```yaml
+version: '3.8'
+
+services:
+  backend:
+    image: vinumore/mcp-pdf-backend:latest
+    container_name: mcp-pdf-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+    volumes:
+      - ./output:/app/output
+      - ./.env:/app/.env
+    restart: unless-stopped
+    networks:
+      - mcp-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/docs')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    image: vinumore/mcp-pdf-frontend:latest
+    container_name: mcp-pdf-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - mcp-network
+    stdin_open: true
+    tty: true
+
+networks:
+  mcp-network:
+    driver: bridge
+
+volumes:
+  uploads:
+  logs:
+  indexes:
+```
+
+**Use Registry Compose File:**
+```bash
+docker-compose -f docker-compose.registry.yml up -d
+```
+
+---
+
+### Step 6: Pull and Run from Registry on Another Machine
+
+**On a different machine or server:**
+
+```bash
+# Login to Docker Hub (if needed)
+docker login
+
+# Pull images
+docker pull vinumore/mcp-pdf-backend:latest
+docker pull vinumore/mcp-pdf-frontend:latest
+
+# Run with docker-compose.registry.yml
+docker-compose -f docker-compose.registry.yml up -d
+```
+
+---
+
+### Complete Push Script
+
+**Create `push-to-registry.sh`:**
+```bash
+#!/bin/bash
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Configuration
+REGISTRY_USER="vinumore"
+BACKEND_IMAGE="mcp_pdf-backend:latest"
+FRONTEND_IMAGE="mcp_pdf-frontend:latest"
+VERSION="v1.0.0"
+
+echo -e "${YELLOW}🐳 Starting Docker Registry Push Process...${NC}"
+
+# Step 1: Check if logged in
+echo -e "\n${YELLOW}Step 1: Checking Docker login status...${NC}"
+if ! docker info > /dev/null 2>&1; then
+    echo -e "${RED}❌ Docker daemon is not running or you're not logged in${NC}"
+    echo "Please run: docker login"
+    exit 1
+fi
+echo -e "${GREEN}✅ Docker is accessible${NC}"
+
+# Step 2: Tag backend image
+echo -e "\n${YELLOW}Step 2: Tagging backend image...${NC}"
+docker tag $BACKEND_IMAGE $REGISTRY_USER/mcp-pdf-backend:latest
+docker tag $BACKEND_IMAGE $REGISTRY_USER/mcp-pdf-backend:$VERSION
+echo -e "${GREEN}✅ Backend image tagged${NC}"
+
+# Step 3: Tag frontend image
+echo -e "\n${YELLOW}Step 3: Tagging frontend image...${NC}"
+docker tag $FRONTEND_IMAGE $REGISTRY_USER/mcp-pdf-frontend:latest
+docker tag $FRONTEND_IMAGE $REGISTRY_USER/mcp-pdf-frontend:$VERSION
+echo -e "${GREEN}✅ Frontend image tagged${NC}"
+
+# Step 4: Push backend image
+echo -e "\n${YELLOW}Step 4: Pushing backend image...${NC}"
+docker push $REGISTRY_USER/mcp-pdf-backend:latest
+docker push $REGISTRY_USER/mcp-pdf-backend:$VERSION
+echo -e "${GREEN}✅ Backend image pushed${NC}"
+
+# Step 5: Push frontend image
+echo -e "\n${YELLOW}Step 5: Pushing frontend image...${NC}"
+docker push $REGISTRY_USER/mcp-pdf-frontend:latest
+docker push $REGISTRY_USER/mcp-pdf-frontend:$VERSION
+echo -e "${GREEN}✅ Frontend image pushed${NC}"
+
+# Step 6: Verify
+echo -e "\n${YELLOW}Step 6: Verifying images...${NC}"
+echo -e "\n${YELLOW}Backend images:${NC}"
+docker images | grep mcp-pdf-backend | grep $REGISTRY_USER
+
+echo -e "\n${YELLOW}Frontend images:${NC}"
+docker images | grep mcp-pdf-frontend | grep $REGISTRY_USER
+
+echo -e "\n${GREEN}✨ All images successfully pushed to Docker Registry!${NC}"
+echo -e "\n${YELLOW}📍 Access at:${NC}"
+echo "   Backend: docker.io/$REGISTRY_USER/mcp-pdf-backend"
+echo "   Frontend: docker.io/$REGISTRY_USER/mcp-pdf-frontend"
+echo -e "\n${YELLOW}📦 Pull images on another machine with:${NC}"
+echo "   docker pull $REGISTRY_USER/mcp-pdf-backend:$VERSION"
+echo "   docker pull $REGISTRY_USER/mcp-pdf-frontend:$VERSION"
+```
+
+**Make executable and run:**
+```bash
+chmod +x push-to-registry.sh
+./push-to-registry.sh
+```
+
+---
+
+### Troubleshooting Push Issues
+
+**Error: "denied: requested access to the resource is denied"**
+```bash
+# Solution 1: Login again
+docker login
+
+# Solution 2: Check username matches
+docker images | grep vinumore  # Verify your username
+
+# Solution 3: Ensure repository is public
+# Go to Docker Hub → Repository Settings → Make Public
+```
+
+**Error: "manifest unknown: manifest unknown"**
+```bash
+# This means the image doesn't exist locally
+# Solution: Build the image first
+docker-compose build
+
+# Then tag and push
+docker tag mcp_pdf-backend:latest vinumore/mcp-pdf-backend:latest
+docker push vinumore/mcp-pdf-backend:latest
+```
+
+**Error: "no basic auth credentials"**
+```bash
+# Solution: Login first
+docker login
+
+# Enter your credentials when prompted
+```
+
+**Large Image Size Issues**
+```bash
+# Check image sizes
+docker images | grep mcp-pdf
+
+# If too large, optimize Dockerfile:
+# - Use Alpine base images
+# - Multi-stage builds
+# - Minimize layers
+# - Clean up cache in RUN commands
+```
+
+---
+
+### Alternative Registries
+
+**GitHub Container Registry (ghcr.io):**
+```bash
+# Login with GitHub token
+echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+
+# Tag image
+docker tag mcp_pdf-backend:latest ghcr.io/username/mcp-pdf-backend:latest
+
+# Push
+docker push ghcr.io/username/mcp-pdf-backend:latest
+```
+
+**AWS ECR (Elastic Container Registry):**
+```bash
+# Get login token
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 123456789.dkr.ecr.us-east-1.amazonaws.com
+
+# Tag image
+docker tag mcp_pdf-backend:latest 123456789.dkr.ecr.us-east-1.amazonaws.com/mcp-pdf-backend:latest
+
+# Push
+docker push 123456789.dkr.ecr.us-east-1.amazonaws.com/mcp-pdf-backend:latest
+```
+
+---
+
+### Summary: Registry Push Workflow
+
+| Step | Command | Purpose |
+|------|---------|---------|
+| 1 | `docker login` | Authenticate with registry |
+| 2 | `docker tag mcp_pdf-backend:latest vinumore/mcp-pdf-backend:latest` | Tag image with namespace |
+| 3 | `docker push vinumore/mcp-pdf-backend:latest` | Upload to registry |
+| 4 | Verify on Docker Hub | Confirm images are public |
+| 5 | Update docker-compose.yml | Use registry images instead of build |
+| 6 | Pull on new machine | `docker pull vinumore/mcp-pdf-backend:latest` |
+
+---
+
+## Kubernetes Deployment
+
+This section covers deploying the MCP PDF Q&A application to Kubernetes using the Docker images from the registry.
+
+### Prerequisites
+
+- `kubectl` installed and configured
+- Kubernetes cluster (local: Minikube, Docker Desktop; cloud: EKS, GKE, AKS)
+- Docker images pushed to registry (Docker Hub, GitHub Container Registry, AWS ECR)
+- `helm` (optional, for package management)
+
+### Step 1: Setup Kubernetes Cluster
+
+**Option A: Local Development (Minikube)**
+
+```bash
+# Install Minikube (if not already installed)
+brew install minikube
+
+# Start Minikube cluster
+minikube start --cpus=4 --memory=8192 --disk-size=50g
+
+# Verify cluster is running
+kubectl cluster-info
+kubectl get nodes
+
+# Enable ingress addon
+minikube addons enable ingress
+```
+
+**Option B: Docker Desktop Kubernetes**
+
+```bash
+# Enable Kubernetes in Docker Desktop:
+# Preferences → Kubernetes → Enable Kubernetes
+
+# Verify cluster
+kubectl cluster-info
+kubectl get nodes
+```
+
+**Option C: Cloud Kubernetes (EKS example)**
+
+```bash
+# Create EKS cluster using eksctl
+eksctl create cluster --name mcp-pdf-cluster --region us-east-1 --nodegroup-name workers --nodes 2 --node-type t3.medium
+
+# Configure kubectl
+aws eks update-kubeconfig --region us-east-1 --name mcp-pdf-cluster
+
+# Verify connection
+kubectl cluster-info
+```
+
+---
+
+### Step 2: Create Kubernetes Namespace
+
+**Create dedicated namespace for the application:**
+
+```bash
+kubectl create namespace mcp-pdf
+kubectl config set-context --current --namespace=mcp-pdf
+```
+
+**Verify namespace:**
+```bash
+kubectl get namespaces
+kubectl config view --minify | grep namespace
+```
+
+---
+
+### Step 3: Create Kubernetes ConfigMap for Environment Variables
+
+**Create `k8s/configmap.yaml`:**
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-pdf-config
+  namespace: mcp-pdf
+data:
+  REACT_APP_API_URL: "http://mcp-pdf-backend-service:8000"
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: "/app"
+```
+
+**Apply ConfigMap:**
+```bash
+kubectl apply -f k8s/configmap.yaml
+```
+
+---
+
+### Step 4: Create Kubernetes Secret for API Keys
+
+**Create `k8s/secret.yaml`:**
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mcp-pdf-secrets
+  namespace: mcp-pdf
+type: Opaque
+stringData:
+  PERPLEXITY_API_KEY: "your-api-key-here"
+```
+
+**Or create from command line:**
+```bash
+kubectl create secret generic mcp-pdf-secrets \
+  --from-literal=PERPLEXITY_API_KEY=$PERPLEXITY_API_KEY \
+  -n mcp-pdf
+```
+
+**Verify secret:**
+```bash
+kubectl get secrets -n mcp-pdf
+kubectl describe secret mcp-pdf-secrets -n mcp-pdf
+```
+
+---
+
+### Step 5: Create Backend Deployment
+
+**Create `k8s/backend-deployment.yaml`:**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-pdf-backend
+  namespace: mcp-pdf
+  labels:
+    app: mcp-pdf-backend
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mcp-pdf-backend
+  template:
+    metadata:
+      labels:
+        app: mcp-pdf-backend
+        tier: backend
+    spec:
+      containers:
+      - name: backend
+        image: vinumore/mcp-pdf-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        
+        # Environment variables from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: mcp-pdf-config
+        
+        # Environment variables from Secret
+        env:
+        - name: PERPLEXITY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mcp-pdf-secrets
+              key: PERPLEXITY_API_KEY
+        
+        # Resource requests and limits
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        
+        # Health check probe
+        livenessProbe:
+          httpGet:
+            path: /docs
+            port: 8000
+          initialDelaySeconds: 40
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /docs
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        # Volume mounts
+        volumeMounts:
+        - name: output-volume
+          mountPath: /app/output
+      
+      # Volumes
+      volumes:
+      - name: output-volume
+        persistentVolumeClaim:
+          claimName: mcp-pdf-pvc
+      
+      # Pod restart policy
+      restartPolicy: Always
+      
+      # Pod termination grace period
+      terminationGracePeriodSeconds: 30
+```
+
+**Apply Backend Deployment:**
+```bash
+kubectl apply -f k8s/backend-deployment.yaml
+```
+
+---
+
+### Step 6: Create Backend Service
+
+**Create `k8s/backend-service.yaml`:**
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-pdf-backend-service
+  namespace: mcp-pdf
+  labels:
+    app: mcp-pdf-backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: mcp-pdf-backend
+```
+
+**Apply Backend Service:**
+```bash
+kubectl apply -f k8s/backend-service.yaml
+```
+
+---
+
+### Step 7: Create Frontend Deployment
+
+**Create `k8s/frontend-deployment.yaml`:**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-pdf-frontend
+  namespace: mcp-pdf
+  labels:
+    app: mcp-pdf-frontend
+    tier: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mcp-pdf-frontend
+  template:
+    metadata:
+      labels:
+        app: mcp-pdf-frontend
+        tier: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: vinumore/mcp-pdf-frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        
+        # Environment variables from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: mcp-pdf-config
+        
+        # Resource requests and limits
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        
+        # Health check probe
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      
+      # Pod restart policy
+      restartPolicy: Always
+      
+      # Pod termination grace period
+      terminationGracePeriodSeconds: 30
+```
+
+**Apply Frontend Deployment:**
+```bash
+kubectl apply -f k8s/frontend-deployment.yaml
+```
+
+---
+
+### Step 8: Create Frontend Service
+
+**Create `k8s/frontend-service.yaml`:**
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-pdf-frontend-service
+  namespace: mcp-pdf
+  labels:
+    app: mcp-pdf-frontend
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app: mcp-pdf-frontend
+```
+
+**Apply Frontend Service:**
+```bash
+kubectl apply -f k8s/frontend-service.yaml
+```
+
+---
+
+### Step 9: Create PersistentVolume and PersistentVolumeClaim
+
+**Create `k8s/persistent-volume.yaml`:**
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mcp-pdf-pvc
+  namespace: mcp-pdf
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+```
+
+**Apply PersistentVolumeClaim:**
+```bash
+kubectl apply -f k8s/persistent-volume.yaml
+```
+
+---
+
+### Step 10: Create Horizontal Pod Autoscaler
+
+**Create `k8s/hpa.yaml`:**
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: mcp-pdf-backend-hpa
+  namespace: mcp-pdf
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mcp-pdf-backend
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: mcp-pdf-frontend-hpa
+  namespace: mcp-pdf
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mcp-pdf-frontend
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+```
+
+**Apply HPA:**
+```bash
+kubectl apply -f k8s/hpa.yaml
+```
+
+---
+
+### Step 11: Create Ingress for External Access
+
+**Create `k8s/ingress.yaml`:**
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mcp-pdf-ingress
+  namespace: mcp-pdf
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+  - hosts:
+    - yourdomain.com
+    secretName: mcp-pdf-tls
+  rules:
+  - host: yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mcp-pdf-frontend-service
+            port:
+              number: 80
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: mcp-pdf-backend-service
+            port:
+              number: 8000
+```
+
+**Apply Ingress:**
+```bash
+kubectl apply -f k8s/ingress.yaml
+```
+
+---
+
+### Step 12: Deploy All Resources
+
+**Create deployment script `k8s/deploy-all.sh`:**
+
+```bash
+#!/bin/bash
+
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+echo -e "${YELLOW}🚀 Starting Kubernetes Deployment...${NC}"
+
+# Step 1: Create namespace
+echo -e "\n${YELLOW}Step 1: Creating namespace...${NC}"
+kubectl create namespace mcp-pdf --dry-run=client -o yaml | kubectl apply -f -
+echo -e "${GREEN}✅ Namespace created${NC}"
+
+# Step 2: Apply ConfigMap
+echo -e "\n${YELLOW}Step 2: Applying ConfigMap...${NC}"
+kubectl apply -f k8s/configmap.yaml
+echo -e "${GREEN}✅ ConfigMap applied${NC}"
+
+# Step 3: Apply Secret
+echo -e "\n${YELLOW}Step 3: Applying Secret...${NC}"
+kubectl apply -f k8s/secret.yaml
+echo -e "${GREEN}✅ Secret applied${NC}"
+
+# Step 4: Apply PersistentVolumeClaim
+echo -e "\n${YELLOW}Step 4: Applying PersistentVolumeClaim...${NC}"
+kubectl apply -f k8s/persistent-volume.yaml
+echo -e "${GREEN}✅ PersistentVolumeClaim applied${NC}"
+
+# Step 5: Apply Backend Deployment
+echo -e "\n${YELLOW}Step 5: Applying Backend Deployment...${NC}"
+kubectl apply -f k8s/backend-deployment.yaml
+echo -e "${GREEN}✅ Backend Deployment applied${NC}"
+
+# Step 6: Apply Backend Service
+echo -e "\n${YELLOW}Step 6: Applying Backend Service...${NC}"
+kubectl apply -f k8s/backend-service.yaml
+echo -e "${GREEN}✅ Backend Service applied${NC}"
+
+# Step 7: Apply Frontend Deployment
+echo -e "\n${YELLOW}Step 7: Applying Frontend Deployment...${NC}"
+kubectl apply -f k8s/frontend-deployment.yaml
+echo -e "${GREEN}✅ Frontend Deployment applied${NC}"
+
+# Step 8: Apply Frontend Service
+echo -e "\n${YELLOW}Step 8: Applying Frontend Service...${NC}"
+kubectl apply -f k8s/frontend-service.yaml
+echo -e "${GREEN}✅ Frontend Service applied${NC}"
+
+# Step 9: Apply HPA
+echo -e "\n${YELLOW}Step 9: Applying Horizontal Pod Autoscaler...${NC}"
+kubectl apply -f k8s/hpa.yaml
+echo -e "${GREEN}✅ HPA applied${NC}"
+
+# Step 10: Apply Ingress
+echo -e "\n${YELLOW}Step 10: Applying Ingress...${NC}"
+kubectl apply -f k8s/ingress.yaml
+echo -e "${GREEN}✅ Ingress applied${NC}"
+
+# Step 11: Wait for deployments
+echo -e "\n${YELLOW}Step 11: Waiting for deployments...${NC}"
+kubectl wait --for=condition=available --timeout=300s deployment/mcp-pdf-backend -n mcp-pdf
+kubectl wait --for=condition=available --timeout=300s deployment/mcp-pdf-frontend -n mcp-pdf
+echo -e "${GREEN}✅ Deployments ready${NC}"
+
+# Step 12: Show deployment status
+echo -e "\n${YELLOW}📊 Deployment Status:${NC}"
+kubectl get deployments -n mcp-pdf
+kubectl get services -n mcp-pdf
+kubectl get pods -n mcp-pdf
+
+echo -e "\n${GREEN}✨ Kubernetes deployment complete!${NC}"
+```
+
+**Make executable and run:**
+```bash
+chmod +x k8s/deploy-all.sh
+./k8s/deploy-all.sh
+```
+
+---
+
+### Step 13: Verify Deployment
+
+**Check deployment status:**
+```bash
+# Get all resources
+kubectl get all -n mcp-pdf
+
+# Get pods
+kubectl get pods -n mcp-pdf -o wide
+
+# Get services
+kubectl get services -n mcp-pdf
+
+# Get ingress
+kubectl get ingress -n mcp-pdf
+```
+
+**View pod logs:**
+```bash
+# Backend logs
+kubectl logs -f deployment/mcp-pdf-backend -n mcp-pdf
+
+# Frontend logs
+kubectl logs -f deployment/mcp-pdf-frontend -n mcp-pdf
+```
+
+**Access the application:**
+```bash
+# Port forward (local access)
+kubectl port-forward service/mcp-pdf-frontend-service 3000:80 -n mcp-pdf
+kubectl port-forward service/mcp-pdf-backend-service 8000:8000 -n mcp-pdf
+
+# Or get LoadBalancer IP (for cloud deployments)
+kubectl get service mcp-pdf-frontend-service -n mcp-pdf
+```
+
+---
+
+### Step 14: Kubernetes Monitoring
+
+**Check pod status:**
+```bash
+kubectl describe pod <pod-name> -n mcp-pdf
+kubectl get events -n mcp-pdf
+```
+
+**Resource usage:**
+```bash
+kubectl top nodes
+kubectl top pods -n mcp-pdf
+```
+
+**HPA status:**
+```bash
+kubectl get hpa -n mcp-pdf
+kubectl describe hpa mcp-pdf-backend-hpa -n mcp-pdf
+```
+
+---
+
+### Step 15: Update Deployment (Rolling Update)
+
+**Update image to new version:**
+```bash
+kubectl set image deployment/mcp-pdf-backend \
+  backend=vinumore/mcp-pdf-backend:v1.1.0 \
+  -n mcp-pdf
+
+kubectl set image deployment/mcp-pdf-frontend \
+  frontend=vinumore/mcp-pdf-frontend:v1.1.0 \
+  -n mcp-pdf
+```
+
+**Check rollout status:**
+```bash
+kubectl rollout status deployment/mcp-pdf-backend -n mcp-pdf
+kubectl rollout history deployment/mcp-pdf-backend -n mcp-pdf
+```
+
+**Rollback if needed:**
+```bash
+kubectl rollout undo deployment/mcp-pdf-backend -n mcp-pdf
+```
+
+---
+
+### Step 16: Scale Deployments Manually
+
+**Scale backend:**
+```bash
+kubectl scale deployment mcp-pdf-backend --replicas=3 -n mcp-pdf
+```
+
+**Scale frontend:**
+```bash
+kubectl scale deployment mcp-pdf-frontend --replicas=2 -n mcp-pdf
+```
+
+---
+
+### Troubleshooting Kubernetes Deployment
+
+**Pods not starting:**
+```bash
+# Check pod events
+kubectl describe pod <pod-name> -n mcp-pdf
+
+# Check image pull
+kubectl get events -n mcp-pdf | grep -i pull
+
+# Verify image exists in registry
+docker pull vinumore/mcp-pdf-backend:latest
+```
+
+**Service connectivity issues:**
+```bash
+# Check DNS resolution
+kubectl run -it --rm debug --image=busybox --restart=Never -- nslookup mcp-pdf-backend-service.mcp-pdf.svc.cluster.local
+
+# Test service connectivity
+kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- curl http://mcp-pdf-backend-service:8000/docs
+```
+
+**Storage issues:**
+```bash
+# Check PVC status
+kubectl get pvc -n mcp-pdf
+kubectl describe pvc mcp-pdf-pvc -n mcp-pdf
+
+# Check PV status
+kubectl get pv
+```
+
+**Resource constraints:**
+```bash
+# View node resources
+kubectl describe nodes
+
+# Increase requests/limits in deployment YAML if needed
+```
+
+---
+
+### Cleanup Kubernetes Resources
+
+**Delete specific resources:**
+```bash
+# Delete deployment
+kubectl delete deployment mcp-pdf-backend -n mcp-pdf
+
+# Delete service
+kubectl delete service mcp-pdf-frontend-service -n mcp-pdf
+
+# Delete namespace (deletes all resources)
+kubectl delete namespace mcp-pdf
+```
+
+**Complete cleanup:**
+```bash
+# Create cleanup script
+./k8s/cleanup.sh
+```
+
+**`k8s/cleanup.sh`:**
+```bash
+#!/bin/bash
+echo "🧹 Cleaning up Kubernetes resources..."
+
+kubectl delete namespace mcp-pdf
+
+echo "✅ Cleanup complete"
+```
+
+---
+
+### Kubernetes Best Practices
+
+1. **Resource Limits**: Always set CPU and memory requests/limits
+2. **Health Checks**: Implement liveness and readiness probes
+3. **Logging**: Use structured logging for debugging
+4. **Monitoring**: Use Prometheus and Grafana for metrics
+5. **Security**: Use Secrets for sensitive data
+6. **RBAC**: Implement role-based access control
+7. **Backup**: Regular backup of persistent data
+8. **DNS**: Use service DNS names for communication
+
+---
+
+### Complete K8s Deployment Summary
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| Namespace | configmap.yaml | Organize resources |
+| ConfigMap | configmap.yaml | Environment variables |
+| Secret | secret.yaml | API keys and credentials |
+| Backend Deployment | backend-deployment.yaml | Backend service pods |
+| Backend Service | backend-service.yaml | Internal service access |
+| Frontend Deployment | frontend-deployment.yaml | Frontend service pods |
+| Frontend Service | frontend-service.yaml | External service access |
+| PVC | persistent-volume.yaml | Persistent storage |
+| HPA | hpa.yaml | Auto-scaling |
+| Ingress | ingress.yaml | External routing |
+
+---
+
+**Document Version**: 1.2  
 **Last Updated**: January 18, 2026  
-**Status**: Docker setup 90% complete, regular deployment 100% functional
+**Status**: Docker setup 100%, Registry push 100%, Kubernetes deployment 100%
