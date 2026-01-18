@@ -47,5 +47,8 @@ output/
 *.json
 !examples/*.json
 
+# Kubernetes secrets
+k8s/secret.yaml
+
 # Logs
 *.log
